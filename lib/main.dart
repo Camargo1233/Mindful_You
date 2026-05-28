@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'services/api_service.dart';
 import 'telas/splashscreen_tela.dart';
 import 'telas/login_tela.dart';
 import 'telas/cadastro_tela.dart';
@@ -11,7 +12,9 @@ import 'telas/grafico_tela.dart';
 import 'telas/registros_tela.dart';
 import 'telas/configuracoes_tela.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MockApiService.ensureSeedData();
   runApp(const MyApp());
 }
 

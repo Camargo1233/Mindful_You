@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../menu/menulateral_tela.dart';
+import '../services/api_service.dart';
 
 class PerfilTela extends StatefulWidget {
   const PerfilTela({super.key});
@@ -14,32 +14,36 @@ class _PerfilTelaState extends State<PerfilTela> {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
   String fotoPerfil = 'assets/img/3.jpg';
-
-  String nomeUsuario = "Usuário";
+  MockUser? usuario;
+  int totalCheckIns = 0;
 
   @override
   void initState() {
     super.initState();
-
-    carregarNome();
+    carregarDados();
   }
 
-  Future<void> carregarNome() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> carregarDados() async {
+    final user = await MockApiService.currentUser();
+    final historico = await MockApiService.loadCheckIns();
+
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
-      nomeUsuario = prefs.getString('nomeUsuario') ?? "Usuário";
+      usuario = user;
+      totalCheckIns = historico.length;
     });
-  }
-
-  Future<void> salvarNome(String nome) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString('nomeUsuario', nome);
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = usuario;
+    final criadoEm = user == null
+        ? '--/--/----'
+        : '${user.createdAt.day.toString().padLeft(2, '0')}/${user.createdAt.month.toString().padLeft(2, '0')}/${user.createdAt.year}';
+
     return Scaffold(
       key: scaffoldKey,
       drawer: const MenuLateral(),
@@ -58,9 +62,8 @@ class _PerfilTelaState extends State<PerfilTela> {
                     top: 18,
                     left: 18,
                     child: IconButton(
-                      onPressed: () {
-                        scaffoldKey.currentState?.openDrawer();
-                      },
+                      tooltip: 'Abrir menu',
+                      onPressed: () => scaffoldKey.currentState?.openDrawer(),
                       icon: const Icon(
                         Icons.menu,
                         size: 34,
@@ -80,24 +83,16 @@ class _PerfilTelaState extends State<PerfilTela> {
                             height: 155,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 5,
-                              ),
+                              border: Border.all(color: Colors.white, width: 5),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 12,
-                                  offset: const Offset(
-                                    0,
-                                    5,
-                                  ),
+                                  offset: const Offset(0, 5),
                                 ),
                               ],
                               image: DecorationImage(
-                                image: AssetImage(
-                                  fotoPerfil,
-                                ),
+                                image: AssetImage(fotoPerfil),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -105,23 +100,25 @@ class _PerfilTelaState extends State<PerfilTela> {
                           Positioned(
                             bottom: 8,
                             right: 8,
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFE9DDCF,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: _mostrarFotoMock,
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE9DDCF),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
                                 ),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 20,
+                                  color: Colors.black87,
                                 ),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                size: 20,
-                                color: Colors.black87,
                               ),
                             ),
                           ),
@@ -132,63 +129,51 @@ class _PerfilTelaState extends State<PerfilTela> {
                 ],
               ),
             ),
-
             const SizedBox(height: 90),
-
             Text(
-              nomeUsuario,
+              user?.name ?? 'Usuario',
               style: const TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            const Text(
-              "Membro desde 01/02/2026",
-              style: TextStyle(
+            const SizedBox(height: 8),
+            Text(
+              user?.email ?? '',
+              style: const TextStyle(
                 fontSize: 16,
                 color: Colors.black54,
                 fontWeight: FontWeight.w500,
               ),
             ),
-
-            const SizedBox(height: 40),
-
-            botao(
-              "Editar",
-              () {
-                mostrarEditarPerfil();
-              },
+            const SizedBox(height: 10),
+            Text(
+              'Membro desde $criadoEm',
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-
+            const SizedBox(height: 14),
+            Chip(
+              avatar: const Icon(Icons.check_circle_outline, size: 18),
+              label: Text('$totalCheckIns check-ins registrados'),
+              backgroundColor: const Color(0xFFE9DDCF),
+            ),
+            const SizedBox(height: 34),
+            botao('Editar', Icons.edit_outlined, mostrarEditarPerfil),
             const SizedBox(height: 16),
-
             botao(
-              "Histórico",
-              () {
-                Navigator.pushNamed(
-                  context,
-                  '/historico',
-                );
-              },
+              'Historico',
+              Icons.history_rounded,
+              () => Navigator.pushNamed(context, '/historico'),
             ),
-
             const Spacer(),
-
-            // SAIR
             Padding(
-              padding: const EdgeInsets.only(
-                bottom: 40,
-              ),
-              child: botao(
-                "Sair",
-                () {
-                  mostrarDialogLogout();
-                },
-              ),
+              padding: const EdgeInsets.only(bottom: 40),
+              child: botao('Sair', Icons.logout_rounded, mostrarDialogLogout),
             ),
           ],
         ),
@@ -196,19 +181,24 @@ class _PerfilTelaState extends State<PerfilTela> {
     );
   }
 
-  void mostrarEditarPerfil() {
-    TextEditingController nomeController = TextEditingController(
-      text: nomeUsuario,
+  void _mostrarFotoMock() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Mock: upload de foto sera integrado ao backend futuro.'),
+      ),
     );
+  }
+
+  void mostrarEditarPerfil() {
+    final nomeController = TextEditingController(text: usuario?.name ?? '');
+    final emailController = TextEditingController(text: usuario?.email ?? '');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(25),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (context) {
         return Padding(
@@ -222,28 +212,20 @@ class _PerfilTelaState extends State<PerfilTela> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "Editar perfil",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                'Editar perfil',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 25),
               TextField(
                 controller: nomeController,
-                decoration: InputDecoration(
-                  hintText: "Digite seu nome",
-                  filled: true,
-                  fillColor: const Color(
-                    0xFFF3EEE8,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      16,
-                    ),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
+                textCapitalization: TextCapitalization.words,
+                decoration: _sheetDecoration('Nome'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: _sheetDecoration('Email'),
               ),
               const SizedBox(height: 25),
               SizedBox(
@@ -251,26 +233,43 @@ class _PerfilTelaState extends State<PerfilTela> {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await salvarNome(
-                      nomeController.text,
-                    );
+                    try {
+                      await MockApiService.updateProfile(
+                        name: nomeController.text,
+                        email: emailController.text,
+                      );
+                      await carregarDados();
 
-                    setState(() {
-                      nomeUsuario = nomeController.text;
-                    });
+                      if (!context.mounted) {
+                        return;
+                      }
 
-                    Navigator.pop(context);
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Perfil atualizado.')),
+                      );
+                    } catch (error) {
+                      if (!context.mounted) {
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            error.toString().replaceFirst('Exception: ', ''),
+                          ),
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFC89494),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        16,
-                      ),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   child: const Text(
-                    "Salvar",
+                    'Salvar',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -283,37 +282,36 @@ class _PerfilTelaState extends State<PerfilTela> {
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      nomeController.dispose();
+      emailController.dispose();
+    });
   }
 
   void mostrarDialogLogout() {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              22,
-            ),
+            borderRadius: BorderRadius.circular(22),
           ),
-          title: const Text(
-            "Sair da conta",
-          ),
-          content: const Text(
-            "Tem certeza que deseja deslogar?",
-          ),
+          title: const Text('Sair da conta'),
+          content: const Text('Tem certeza que deseja deslogar?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancelar",
-              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await MockApiService.logout();
+
+                if (!context.mounted) {
+                  return;
+                }
+
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login',
@@ -323,9 +321,7 @@ class _PerfilTelaState extends State<PerfilTela> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFC89494),
               ),
-              child: const Text(
-                "Sair",
-              ),
+              child: const Text('Sair'),
             ),
           ],
         );
@@ -333,25 +329,21 @@ class _PerfilTelaState extends State<PerfilTela> {
     );
   }
 
-  Widget botao(
-    String texto,
-    VoidCallback onPressed,
-  ) {
+  Widget botao(String texto, IconData icon, VoidCallback onPressed) {
     return SizedBox(
-      width: 150,
-      height: 45,
-      child: ElevatedButton(
+      width: 170,
+      height: 46,
+      child: ElevatedButton.icon(
         onPressed: onPressed,
+        icon: Icon(icon, color: Colors.black87, size: 19),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(
-            0xFFE9DDCF,
-          ),
+          backgroundColor: const Color(0xFFE9DDCF),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
         ),
-        child: Text(
+        label: Text(
           texto,
           style: const TextStyle(
             color: Colors.black87,
@@ -359,6 +351,18 @@ class _PerfilTelaState extends State<PerfilTela> {
             fontWeight: FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration _sheetDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: const Color(0xFFF3EEE8),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
       ),
     );
   }

@@ -1,12 +1,10 @@
-import 'dart:io';
-
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../menu/menulateral_tela.dart';
+import '../services/api_service.dart';
 
 class GraficoTela extends StatefulWidget {
   const GraficoTela({super.key});
@@ -16,81 +14,89 @@ class GraficoTela extends StatefulWidget {
 }
 
 class _GraficoTelaState extends State<GraficoTela> {
-  String nomeUsuario = "Tio Chico";
+  String nomeUsuario = 'Usuario';
+  MockCheckIn? ultimoCheckIn;
 
   @override
   void initState() {
     super.initState();
-    carregarNome();
+    carregarDados();
   }
 
-  Future<void> carregarNome() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> carregarDados() async {
+    final usuario = await MockApiService.currentUser();
+    final checkIn = await MockApiService.lastCheckIn();
+
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
-      nomeUsuario = prefs.getString('nomeUsuario') ?? "Tio Chico";
+      nomeUsuario = usuario?.name ?? 'Usuario';
+      ultimoCheckIn = checkIn;
     });
   }
 
-  Future<void> gerarPDF() async {
+  Future<void> gerarPDF(Map<String, double> metricas) async {
     final pdf = pw.Document();
+    final checkIn = ultimoCheckIn;
 
     pdf.addPage(
       pw.MultiPage(
         build: (context) => [
           pw.Text(
-            "Relatório Mindful You",
-            style: pw.TextStyle(
-              fontSize: 26,
-              fontWeight: pw.FontWeight.bold,
+            'Relatorio Mindful You',
+            style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 16),
+          pw.Text('Usuario: $nomeUsuario'),
+          if (checkIn != null) pw.Text('Data: ${checkIn.formattedDate}'),
+          if (checkIn != null) pw.Text('Humor inicial: ${checkIn.mood}'),
+          if (checkIn != null) pw.Text('Status: ${checkIn.status}'),
+          pw.SizedBox(height: 18),
+          pw.Text('Indicadores emocionais'),
+          pw.SizedBox(height: 8),
+          ...metricas.entries.map(
+            (entry) => pw.Text(
+              '${entry.key}: ${entry.value.toStringAsFixed(0)}%',
             ),
           ),
-          pw.SizedBox(height: 25),
-          pw.Text(
-            "Usuário: $nomeUsuario",
-            style: const pw.TextStyle(fontSize: 18),
-          ),
-          pw.SizedBox(height: 15),
-          pw.Text(
-            "Resultado emocional do questionário.",
-            style: const pw.TextStyle(fontSize: 16),
-          ),
+          if (checkIn != null) ...[
+            pw.SizedBox(height: 18),
+            pw.Text('Respostas'),
+            pw.SizedBox(height: 8),
+            ...List.generate(checkIn.questions.length, (index) {
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 8),
+                child: pw.Text(
+                  '${index + 1}. ${checkIn.questions[index]} ${checkIn.answers[index]}',
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
 
-    final dir = await getApplicationDocumentsDirectory();
-
-    final file = File(
-      '${dir.path}/relatorio_mindful_you.pdf',
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'relatorio_mindful_you.pdf',
     );
-
-    await file.writeAsBytes(await pdf.save());
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "PDF baixado com sucesso!",
-          ),
-        ),
+        const SnackBar(content: Text('Relatorio PDF gerado.')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, dynamic> dados =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ??
-            {};
-
-    final double cansaco = (dados['cansaco'] ?? 55).toDouble();
-
-    final double ansiedade = (dados['ansiedade'] ?? 15).toDouble();
-
-    final double sono = (dados['sono'] ?? 25).toDouble();
-
-    final double produtividade = (dados['produtividade'] ?? 5).toDouble();
+    final metricas = _metricasDaRota(context);
+    final cansaco = metricas['cansaco'] ?? 0;
+    final ansiedade = metricas['ansiedade'] ?? 0;
+    final sono = metricas['sono'] ?? 0;
+    final produtividade = metricas['produtividade'] ?? 0;
 
     return Scaffold(
       drawer: const MenuLateral(),
@@ -112,10 +118,7 @@ class _GraficoTelaState extends State<GraficoTela> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 20,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,50 +128,37 @@ class _GraficoTelaState extends State<GraficoTela> {
                       children: [
                         Builder(
                           builder: (context) {
-                            return GestureDetector(
-                              onTap: () {
-                                Scaffold.of(context).openDrawer();
-                              },
-                              child: const Icon(
+                            return IconButton(
+                              tooltip: 'Abrir menu',
+                              onPressed: () =>
+                                  Scaffold.of(context).openDrawer(),
+                              icon: const Icon(
                                 Icons.menu,
                                 size: 34,
-                                color: Color(
-                                  0xFFB5ACA4,
-                                ),
+                                color: Color(0xFFB5ACA4),
                               ),
                             );
                           },
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/perfil',
-                            );
-                          },
-                          child: Container(
+                        IconButton(
+                          tooltip: 'Perfil',
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/perfil'),
+                          icon: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 3,
-                              ),
+                              border: Border.all(color: Colors.white, width: 3),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
+                                  color: Colors.black.withValues(alpha: 0.15),
                                   blurRadius: 10,
-                                  offset: const Offset(
-                                    0,
-                                    4,
-                                  ),
+                                  offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
                             child: const CircleAvatar(
                               radius: 30,
-                              backgroundImage: AssetImage(
-                                'assets/img/3.jpg',
-                              ),
+                              backgroundImage: AssetImage('assets/img/3.jpg'),
                             ),
                           ),
                         ),
@@ -176,16 +166,27 @@ class _GraficoTelaState extends State<GraficoTela> {
                     ),
                     const SizedBox(height: 35),
                     Text(
-                      "Olá, $nomeUsuario 👋",
+                      'Ola, $nomeUsuario',
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 35),
+                    const SizedBox(height: 12),
+                    Text(
+                      ultimoCheckIn == null
+                          ? 'Resultado emocional mockado'
+                          : '${ultimoCheckIn!.mood} - ${ultimoCheckIn!.status}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
                     const Text(
-                      "Gráfico",
+                      'Grafico',
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
@@ -202,95 +203,61 @@ class _GraficoTelaState extends State<GraficoTela> {
                             centerSpaceRadius: 0,
                             borderData: FlBorderData(show: false),
                             sections: [
-                              PieChartSectionData(
-                                color: const Color(
-                                  0xFF4D79E6,
-                                ),
+                              _section(
+                                color: const Color(0xFF4D79E6),
                                 value: cansaco,
-                                radius: 95,
-                                title: "Cansaço\n${cansaco.toInt()}%",
-                                titleStyle: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                                titlePositionPercentageOffset: 1.22,
+                                title: 'Cansaco',
                               ),
-                              PieChartSectionData(
-                                color: const Color(
-                                  0xFFA483E6,
-                                ),
+                              _section(
+                                color: const Color(0xFFA483E6),
                                 value: sono,
-                                radius: 95,
-                                title: "Falta de Sono\n${sono.toInt()}%",
-                                titleStyle: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                                titlePositionPercentageOffset: 1.20,
+                                title: 'Sono',
                               ),
-                              PieChartSectionData(
-                                color: const Color(
-                                  0xFFE9B366,
-                                ),
+                              _section(
+                                color: const Color(0xFFE9B366),
                                 value: ansiedade,
-                                radius: 95,
-                                title: "Ansiedade\n${ansiedade.toInt()}%",
-                                titleStyle: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                                titlePositionPercentageOffset: 1.23,
+                                title: 'Ansiedade',
                               ),
-                              PieChartSectionData(
-                                color: const Color(
-                                  0xFFF3D34F,
-                                ),
+                              _section(
+                                color: const Color(0xFFF3D34F),
                                 value: produtividade,
-                                radius: 95,
-                                title:
-                                    "Produtividade\n${produtividade.toInt()}%",
-                                titleStyle: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                                titlePositionPercentageOffset: 1.35,
+                                title: 'Produtividade',
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    const SizedBox(height: 26),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
                       children: [
                         botao(
-                          context,
-                          "Histórico",
-                          () {
-                            Navigator.pushNamed(
-                              context,
-                              '/historico',
-                            );
-                          },
+                          'Historico',
+                          Icons.history_rounded,
+                          () => Navigator.pushNamed(context, '/historico'),
                         ),
                         botao(
-                          context,
-                          "Gerar relatório",
-                          () async {
-                            await gerarPDF();
-                          },
+                          'Relatorio',
+                          Icons.picture_as_pdf_rounded,
+                          () async => gerarPDF(metricas),
+                        ),
+                        botao(
+                          'Novo check-in',
+                          Icons.add_task_outlined,
+                          () => Navigator.pushReplacementNamed(
+                            context,
+                            '/inicial',
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 36),
                     const Center(
                       child: Text(
-                        "Dicas para melhorar\nsua saúde mental",
+                        'Dicas para melhorar\nsua saude mental',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 22,
@@ -302,18 +269,18 @@ class _GraficoTelaState extends State<GraficoTela> {
                     ),
                     const SizedBox(height: 28),
                     dicaCard(
-                      "😴 Priorize o sono",
-                      "Dormir bem regula o humor, melhora a concentração e reduz a ansiedade.",
+                      'Priorize o sono',
+                      'Dormir bem regula o humor, melhora a concentracao e reduz a ansiedade.',
                       const Color(0xFFE5BFC0),
                     ),
                     dicaCard(
-                      "🏃 Mexa o corpo",
-                      "Atividades físicas ajudam muito no controle emocional.",
+                      'Mexa o corpo',
+                      'Atividades fisicas ajudam no controle emocional e melhoram sua energia.',
                       const Color(0xFFE7C0A6),
                     ),
                     dicaCard(
-                      "🧘 Tire um tempo para você",
-                      "Momentos de pausa ajudam a reduzir o estresse.",
+                      'Tire um tempo para voce',
+                      'Momentos de pausa ajudam a reduzir o estresse e organizar pensamentos.',
                       const Color(0xFFD9CFC7),
                     ),
                     const SizedBox(height: 20),
@@ -327,45 +294,71 @@ class _GraficoTelaState extends State<GraficoTela> {
     );
   }
 
-  Widget botao(
-    BuildContext context,
-    String texto,
-    VoidCallback onPressed,
-  ) {
+  Map<String, double> _metricasDaRota(BuildContext context) {
+    final dados =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final fonte = dados ?? ultimoCheckIn?.metrics ?? const <String, double>{};
+
+    return {
+      'cansaco': _toDouble(fonte['cansaco'], fallback: 25),
+      'ansiedade': _toDouble(fonte['ansiedade'], fallback: 15),
+      'sono': _toDouble(fonte['sono'], fallback: 20),
+      'produtividade': _toDouble(fonte['produtividade'], fallback: 40),
+    };
+  }
+
+  double _toDouble(Object? value, {required double fallback}) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  PieChartSectionData _section({
+    required Color color,
+    required double value,
+    required String title,
+  }) {
+    return PieChartSectionData(
+      color: color,
+      value: value <= 0 ? 1 : value,
+      radius: 95,
+      title: '$title\n${value.toInt()}%',
+      titleStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.black,
+      ),
+      titlePositionPercentageOffset: 1.24,
+    );
+  }
+
+  Widget botao(String texto, IconData icon, VoidCallback onPressed) {
     return SizedBox(
-      width: 145,
-      height: 42,
-      child: ElevatedButton(
+      width: 150,
+      height: 44,
+      child: ElevatedButton.icon(
         onPressed: onPressed,
+        icon: Icon(icon, size: 18),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(
-            0xFFE7DCCB,
-          ),
+          backgroundColor: const Color(0xFFE7DCCB),
+          foregroundColor: Colors.black,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: Center(
-          child: Text(
-            texto,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+        label: Text(
+          texto,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 
-  Widget dicaCard(
-    String titulo,
-    String desc,
-    Color cor,
-  ) {
+  Widget dicaCard(String titulo, String desc, Color cor) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 18),
@@ -375,7 +368,7 @@ class _GraficoTelaState extends State<GraficoTela> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),

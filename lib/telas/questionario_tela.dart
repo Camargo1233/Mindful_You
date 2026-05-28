@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../menu/menulateral_tela.dart';
 import '../data/historico_global.dart';
+import '../menu/menulateral_tela.dart';
+import '../services/api_service.dart';
 
 class QuestionarioTela extends StatefulWidget {
   const QuestionarioTela({super.key});
@@ -13,43 +13,39 @@ class QuestionarioTela extends StatefulWidget {
 
 class _QuestionarioTelaState extends State<QuestionarioTela> {
   int perguntaAtual = 0;
+  bool salvando = false;
 
-  final List<String> perguntas = [
-    "Como está seu humor hoje?",
-    "Você dormiu bem esta noite?",
-    "Como está sua energia hoje?",
-    "Você está se sentindo motivado?",
-    "Seu nível de ansiedade hoje está como?",
-    "Você conseguiu se concentrar hoje?",
-    "Você se sente sobrecarregado?",
-    "Como está sua autoestima hoje?",
-    "Você teve momentos felizes hoje?",
-    "Como está seu nível de estresse?",
-    "Você conseguiu descansar hoje?",
-    "Como você se sente agora?",
+  final List<String> perguntas = const [
+    'Como esta seu humor hoje?',
+    'Voce dormiu bem esta noite?',
+    'Como esta sua energia hoje?',
+    'Voce esta se sentindo motivado?',
+    'Seu nivel de ansiedade hoje esta como?',
+    'Voce conseguiu se concentrar hoje?',
+    'Voce se sente sobrecarregado?',
+    'Como esta sua autoestima hoje?',
+    'Voce teve momentos felizes hoje?',
+    'Como esta seu nivel de estresse?',
+    'Voce conseguiu descansar hoje?',
+    'Como voce se sente agora?',
   ];
 
-  final List<String> respostas = [
-    "Muito Bom",
-    "Bom",
-    "Neutro",
-    "Ruim",
-    "Péssimo",
+  final List<String> respostas = const [
+    'Muito bom',
+    'Bom',
+    'Neutro',
+    'Ruim',
+    'Pessimo',
   ];
 
-  List<String> respostasUsuario = [];
-
-  Future<void> salvarDataQuestionario() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString(
-      'ultimoQuestionario',
-      DateTime.now().toIso8601String(),
-    );
-  }
+  final List<String> respostasUsuario = [];
 
   @override
   Widget build(BuildContext context) {
+    final mood =
+        ModalRoute.of(context)?.settings.arguments?.toString() ?? 'Neutro';
+    final progresso = (perguntaAtual + 1) / perguntas.length;
+
     return Scaffold(
       drawer: const MenuLateral(),
       backgroundColor: Colors.white,
@@ -59,16 +55,10 @@ class _QuestionarioTelaState extends State<QuestionarioTela> {
             Positioned(
               top: 20,
               left: 200,
-              child: Image.asset(
-                'assets/img/4.png',
-                width: 130,
-              ),
+              child: Image.asset('assets/img/4.png', width: 130),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 22,
-                vertical: 18,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -77,11 +67,10 @@ class _QuestionarioTelaState extends State<QuestionarioTela> {
                     children: [
                       Builder(
                         builder: (context) {
-                          return GestureDetector(
-                            onTap: () {
-                              Scaffold.of(context).openDrawer();
-                            },
-                            child: const Icon(
+                          return IconButton(
+                            tooltip: 'Abrir menu',
+                            onPressed: () => Scaffold.of(context).openDrawer(),
+                            icon: const Icon(
                               Icons.menu,
                               size: 34,
                               color: Color(0xFFB9AFA8),
@@ -89,200 +78,101 @@ class _QuestionarioTelaState extends State<QuestionarioTela> {
                           );
                         },
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, '/perfil');
-                        },
-                        child: const CircleAvatar(
+                      IconButton(
+                        tooltip: 'Perfil',
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/perfil'),
+                        icon: const CircleAvatar(
                           radius: 28,
                           backgroundImage: AssetImage('assets/img/3.jpg'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 45),
+                  const SizedBox(height: 26),
+                  Text(
+                    'Check-in: $mood',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: progresso,
+                    color: const Color(0xFFC89494),
+                    backgroundColor: const Color(0xFFF0E7E1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  const SizedBox(height: 24),
                   Container(
                     width: double.infinity,
-                    height: 255,
+                    constraints: const BoxConstraints(minHeight: 230),
+                    padding: const EdgeInsets.all(26),
                     decoration: BoxDecoration(
                       color: const Color(0xFFC89494),
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(
-                            0.08,
-                          ),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
                       ],
                     ),
-                    child: Stack(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Positioned(
-                          top: 25,
-                          left: 0,
-                          right: 0,
-                          child: Text(
-                            "${perguntaAtual + 1}. Questão ${perguntaAtual + 1}/12",
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                        Text(
+                          'Questao ${perguntaAtual + 1}/${perguntas.length}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
                         ),
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 30,
-                            ),
-                            child: Text(
-                              perguntas[perguntaAtual],
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 31,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                                height: 1.25,
-                              ),
-                            ),
+                        const SizedBox(height: 24),
+                        Text(
+                          perguntas[perguntaAtual],
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 29,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                            height: 1.25,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 45),
+                  const SizedBox(height: 28),
+                  if (perguntaAtual > 0)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: salvando ? null : _voltarPergunta,
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Voltar pergunta'),
+                      ),
+                    ),
                   Expanded(
                     child: ListView.builder(
                       itemCount: respostas.length,
                       itemBuilder: (context, index) {
                         return Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: 17,
-                          ),
+                          padding: const EdgeInsets.only(bottom: 14),
                           child: ElevatedButton(
-                            onPressed: () async {
-                              respostasUsuario.add(
-                                respostas[index],
-                              );
-
-                              if (perguntaAtual < perguntas.length - 1) {
-                                setState(() {
-                                  perguntaAtual++;
-                                });
-                              } else {
-                                double cansaco = 0;
-
-                                double ansiedade = 0;
-
-                                double sono = 0;
-
-                                double produtividade = 0;
-
-                                for (var resposta in respostasUsuario) {
-                                  switch (resposta) {
-                                    case "Muito Bom":
-                                      produtividade += 10;
-                                      sono += 8;
-                                      break;
-
-                                    case "Bom":
-                                      produtividade += 7;
-                                      sono += 6;
-                                      break;
-
-                                    case "Neutro":
-                                      ansiedade += 5;
-                                      cansaco += 5;
-                                      break;
-
-                                    case "Ruim":
-                                      ansiedade += 8;
-                                      cansaco += 8;
-                                      break;
-
-                                    case "Péssimo":
-                                      ansiedade += 12;
-                                      cansaco += 12;
-                                      break;
-                                  }
-                                }
-
-                                cansaco = cansaco.clamp(
-                                  0,
-                                  100,
-                                );
-
-                                ansiedade = ansiedade.clamp(
-                                  0,
-                                  100,
-                                );
-
-                                sono = sono.clamp(
-                                  0,
-                                  100,
-                                );
-
-                                produtividade = produtividade.clamp(
-                                  0,
-                                  100,
-                                );
-
-                                await salvarDataQuestionario();
-
-                                historicoGlobal.add({
-                                  "data":
-                                      "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-                                  "status": ansiedade >= 40
-                                      ? "Ansiedade elevada"
-                                      : cansaco >= 40
-                                          ? "Cansaço emocional"
-                                          : "Humor estável",
-                                  "cor": ansiedade >= 40
-                                      ? const Color(
-                                          0xFFE8C3C5,
-                                        )
-                                      : cansaco >= 40
-                                          ? const Color(
-                                              0xFFC6B2B2,
-                                            )
-                                          : const Color(
-                                              0xFFECC7AF,
-                                            ),
-                                  "perguntas": perguntas,
-                                  "respostas": respostasUsuario,
-                                  "dadosGrafico": {
-                                    "cansaco": cansaco,
-                                    "ansiedade": ansiedade,
-                                    "sono": sono,
-                                    "produtividade": produtividade,
-                                  },
-                                });
-
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/grafico',
-                                  arguments: {
-                                    'cansaco': cansaco,
-                                    'ansiedade': ansiedade,
-                                    'sono': sono,
-                                    'produtividade': produtividade,
-                                  },
-                                );
-                              }
-                            },
+                            onPressed: salvando
+                                ? null
+                                : () => _responder(respostas[index], mood),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
                               elevation: 3,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 17,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 17),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  18,
-                                ),
+                                borderRadius: BorderRadius.circular(18),
                               ),
                             ),
                             child: Text(
@@ -301,9 +191,109 @@ class _QuestionarioTelaState extends State<QuestionarioTela> {
                 ],
               ),
             ),
+            if (salvando)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Color(0x66FFFFFF),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  void _voltarPergunta() {
+    setState(() {
+      perguntaAtual--;
+      respostasUsuario.removeLast();
+    });
+  }
+
+  Future<void> _responder(String resposta, String mood) async {
+    respostasUsuario.add(resposta);
+
+    if (perguntaAtual < perguntas.length - 1) {
+      setState(() => perguntaAtual++);
+      return;
+    }
+
+    setState(() => salvando = true);
+
+    final metrics = _calcularMetricas(respostasUsuario);
+    final checkIn = await MockApiService.saveCheckIn(
+      mood: mood,
+      questions: perguntas,
+      answers: List<String>.from(respostasUsuario),
+      metrics: metrics,
+    );
+    await sincronizarHistoricoGlobal();
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pushReplacementNamed(
+      context,
+      '/grafico',
+      arguments: checkIn.metrics,
+    );
+  }
+
+  Map<String, double> _calcularMetricas(List<String> respostas) {
+    var cansaco = 0.0;
+    var ansiedade = 0.0;
+    var sono = 0.0;
+    var produtividade = 0.0;
+
+    for (var index = 0; index < respostas.length; index++) {
+      final valor = _valorResposta(respostas[index]);
+      final invertido = 5 - valor;
+
+      switch (index) {
+        case 1:
+        case 10:
+          sono += invertido * 10;
+          break;
+        case 4:
+        case 6:
+        case 9:
+          ansiedade += invertido * 8;
+          cansaco += invertido * 4;
+          break;
+        case 2:
+        case 3:
+        case 5:
+          produtividade += valor * 8;
+          cansaco += invertido * 3;
+          break;
+        default:
+          produtividade += valor * 4;
+          ansiedade += invertido * 3;
+      }
+    }
+
+    return {
+      'cansaco': cansaco.clamp(0, 100).toDouble(),
+      'ansiedade': ansiedade.clamp(0, 100).toDouble(),
+      'sono': sono.clamp(0, 100).toDouble(),
+      'produtividade': produtividade.clamp(0, 100).toDouble(),
+    };
+  }
+
+  int _valorResposta(String resposta) {
+    switch (resposta) {
+      case 'Muito bom':
+        return 5;
+      case 'Bom':
+        return 4;
+      case 'Neutro':
+        return 3;
+      case 'Ruim':
+        return 2;
+      default:
+        return 1;
+    }
   }
 }
